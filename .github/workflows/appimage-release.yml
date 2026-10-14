@@ -1,0 +1,47 @@
+name: Linux AppImage preview
+
+# Manually triggered: builds the bring-your-own-ROM AppImage and publishes it as
+# a pre-release. The image contains source only; no ROM or game data.
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to create (for example linux-appimage-preview-1)"
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+jobs:
+  appimage:
+    name: Build and publish AppImage
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Check out source
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Fetch appimagetool
+        run: |
+          mkdir -p "$RUNNER_TEMP/tool"
+          curl -fsSL -o "$RUNNER_TEMP/tool/appimagetool" \
+            https://github.com/AppImage/appimagetool/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x "$RUNNER_TEMP/tool/appimagetool"
+      - name: Package
+        run: python3 scripts/package_appimage.py --output "$RUNNER_TEMP/out" --appimagetool "$RUNNER_TEMP/tool/appimagetool"
+      - name: Publish pre-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ inputs.tag }}
+        run: |
+          image="$(ls "$RUNNER_TEMP"/out/*.AppImage)"
+          revision="$(git rev-parse --short=12 HEAD)"
+          (cd "$(dirname "$image")" && sha256sum "$(basename "$image")" > "$(basename "$image").sha256")
+          sed -e "s/@REVISION@/$revision/" -e "s/@SHA256FILE@/$(basename "$image").sha256/" \
+            packaging/linux/RELEASE_NOTES.md > "$RUNNER_TEMP/notes.md"
+          gh release create "$TAG" "$image" "$image.sha256" \
+            --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+            --title "Linux AppImage preview (experimental, bring your own ROM)" \
+            --notes-file "$RUNNER_TEMP/notes.md"
