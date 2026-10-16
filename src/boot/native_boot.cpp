@@ -8719,12 +8719,19 @@ extern "C" void jfg_phase9_instruction_effect(unsigned section, unsigned pc,
   (void)section; (void)pc; (void)word; (void)context;
 #endif
 }
+#ifndef JFG_NOINLINE
+#if defined(_MSC_VER)
+#define JFG_NOINLINE __declspec(noinline)
+#else
+#define JFG_NOINLINE __attribute__((noinline))
+#endif
+#endif
 
 // Only called by a separately regenerated private observation root. Count
 // entered instruction sites, including loop iterations and executed slots.
 // The default is observation-only. The separate guest-OS diagnostic executes
 // original OS bodies, with the bounded reference CPU/device profile below.
-extern "C" __declspec(noinline) void jfg_phase9_execution_probe_slow(
+extern "C" JFG_NOINLINE void jfg_phase9_execution_probe_slow(
     unsigned section, unsigned pc, unsigned word, void* context);
 
 // Keep the common instruction path independent of the rare device/exception
@@ -8815,7 +8822,7 @@ extern "C" void jfg_phase9_execution_probe_predecoded(unsigned metadata, unsigne
   jfg_phase9_execution_probe_slow(section,pc,word,context);
 }
 
-extern "C" __declspec(noinline) void jfg_phase9_execution_probe_slow(unsigned section, unsigned pc,
+extern "C" JFG_NOINLINE void jfg_phase9_execution_probe_slow(unsigned section, unsigned pc,
                                           unsigned word, void *context) {
 #if defined(JFG_NATIVE_HOST) && defined(JFG_PHASE8_LIVE_RUNTIME)
   if (g_active_child_state != nullptr && context != nullptr) {
